@@ -316,7 +316,7 @@ class MB_LE(object):
         # self.ens_a.record(['spikes'])
         self.buildCPUTime = timer.diff()
 
-    def run_sim(self, make_plots=True):
+    def run_sim(self, make_plots=True, save_weights=True):
         # Setup the Simulator
         sim.run(self.sim_t)
 
@@ -340,7 +340,8 @@ class MB_LE(object):
 
         # 先保存原始结果，再处理绘图；以后测试直接加载这个权重矩阵。
         # .npy 保留完整权重矩阵，后续测试再转换成连接列表。
-        np.save(self.output_dir / 'kc2kc_weights.npy', self.learned_w_kc2kc)
+        if save_weights:
+            np.save(self.output_dir / 'kc2kc_weights.npy', self.learned_w_kc2kc)
         # .pkl 保留 Neo 脉冲序列和膜电位，之后可单独绘图。
         activity = {
             'pn_spikes': pn_spikes, 'kc_spikes': kc_spikes,
