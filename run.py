@@ -13,7 +13,7 @@ import numpy as np
 from scipy.io import loadmat
 
 BASE_DIR = Path(__file__).resolve().parent
-TIME_SCALE_FACTOR = 10  # 放慢真实执行速度；模型时间步仍为 1 ms。
+TIME_SCALE_FACTOR = 1  # 正常执行速度；模型时间步为 1 ms。
 
 
 def check_input(data_file):
