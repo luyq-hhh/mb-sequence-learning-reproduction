@@ -54,7 +54,7 @@ def check_recording(output_dir, simulation_ms):
         activity = pickle.load(file)  # 只读取本次自己生成的输出。
     mbon_complete = all(len(activity[name]) == int(simulation_ms)
                         for name in ["mbon_v", "mbon_a_v"])
-    checks = {"kc_a_voltage_complete": bool(complete),
+    checks = {"simulation_ms": float(simulation_ms), "kc_a_voltage_complete": bool(complete),
               "mbon_voltage_complete": mbon_complete,
               "core_counter_rows": len(rows), "nonzero_error_counters": len(bad_rows)}
     (output_dir / "checks.json").write_text(json.dumps(checks, indent=2))
@@ -62,7 +62,7 @@ def check_recording(output_dir, simulation_ms):
     assert rows and not bad_rows, "核心运行计数缺失或存在异常，保留输出并停止后续阶段"
 
 
-def run_case(data_file, output_dir, input_info):
+def run_case(data_file, output_dir, input_info, testing_files=None):
     from importlib.metadata import version
     versions = {name: version(name) for name in ["sPyNNaker", "PyNN", "numpy", "neo"]}
     # 原始电压读取使用 7.4.1 的数据库结构，版本不符时在申请硬件前停止。
@@ -74,11 +74,18 @@ def run_case(data_file, output_dir, input_info):
     record = {"status": "RUNNING", "input": input_info, "versions": versions,
               "pn": 840, "kc_per_group": 4000, "time_step_ms": 1,
               "time_scale_factor": TIME_SCALE_FACTOR, "completed_phases": []}
+    batch_mode = testing_files is not None
+    if testing_files is None:
+        testing_files = [data_file]
+    simulations = [("learning", data_file)] + [("testing", file) for file in testing_files]
+    record["testing_files"] = [file.name for file in testing_files]
     weights = None
     try:
-        for phase in ["learning", "testing"]:
+        for phase, current_file in simulations:
             initialized = False
             phase_dir = output_dir / phase
+            if batch_mode and phase == "testing":
+                phase_dir = phase_dir / current_file.stem
             try:
                 sim.setup(timestep=1.0, min_delay=1.0, max_delay=14,
                           time_scale_factor=TIME_SCALE_FACTOR)
@@ -90,19 +97,23 @@ def run_case(data_file, output_dir, input_info):
                     model = MB_LE(str(data_file), t_start=0, t_end=0.5,
                                   learned=False, output_dir=phase_dir)
                 else:
-                    model = MB_LE(str(data_file), learned=True, w_kc2kc=weights,
+                    model = MB_LE(str(current_file), learned=True, w_kc2kc=weights,
                                   output_dir=phase_dir)
-                model.run_sim(make_plots=False)
-                check_recording(phase_dir, model.sim_t)
+                # 批量测试共用该次学习权重，不重复保存同一大矩阵。
+                model.run_sim(make_plots=False,
+                              save_weights=(phase == "learning" or not batch_mode))
+                # 某些文件的半程为 x.5 ms，按模拟器实际走过的 1 ms 网格检查。
+                check_recording(phase_dir, sim.get_current_time())
                 if phase == "learning":
                     weights = generate_pnlist(np.asarray(model.learned_w_kc2kc))
                     assert weights, "学习后没有非零连接，停止测试"
-                record["completed_phases"].append(phase)
+                phase_name = phase if not batch_mode else phase + "/" + current_file.stem
+                record["completed_phases"].append(phase_name)
             finally:
                 if initialized:
                     sim.end()  # 学习与测试之间释放硬件；异常时也执行。
         record["status"] = "COMPLETED"
-        record["interpretation"] = "Single-file learning/testing only; route recognition is not yet validated."
+        record["interpretation"] = "Learning/testing records only; route labels and recognition metrics need analysis."
     except Exception as error:
         record["status"] = "FAILED"
         record["error"] = str(error)
