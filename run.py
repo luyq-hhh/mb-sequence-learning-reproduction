@@ -14,7 +14,7 @@ import numpy as np
 from scipy.io import loadmat
 
 BASE_DIR = Path(__file__).resolve().parent
-TIME_SCALE_FACTOR = 10  # 墙钟执行放慢十倍；模型时间步仍为 1 ms。
+TIME_SCALE_FACTOR = 20  # 墙钟执行放慢二十倍；模型时间步仍为 1 ms。
 
 
 def check_input(data_file):
