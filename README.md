@@ -12,7 +12,7 @@
 ## 平台提交
 - Hardware: SpiNNaker
 - 来源：包含 run.py、spynnaker.cfg、src/ 两个模块和 data/p01.mat 的仓库或 ZIP。
-- Command: run.py --run
+- Command: <解压目录>/run.py --run（GitHub ZIP 会保留仓库名与提交号组成的外层目录，不能直接填 run.py --run）
 - sPyNNaker version: 留空，使用平台预装环境。成功作业 422060 的实际版本为 1!7.4.2；入口允许已核查的 7.4.1 / 7.4.2，未知版本在申请硬件前退出。
 - 其他软件版本覆盖项、Extra 各项先留空；本入口不依赖 Elephant 绘图分析。
 - 平台需要能访问代码源。浏览器已登录 GitHub，不代表平台有权限下载私有仓库；不要把登录令牌放进仓库 URL。
@@ -40,7 +40,7 @@ COMPLETED 只表示本案例流程及检查完成，不能据此声称复现了�
 
 
 ## 26 文件批量学习与测试
-- 入口为 batch.py。默认只核查输入；平台 Command 为 batch.py --run。
+- 入口为 batch.py。默认只核查输入；GitHub ZIP 的平台 Command 为 <解压目录>/batch.py --run。
 - 现有 26 个 MAT 文件按文件名排序。每个文件独立学习前半段，然后固定该次学习的权重，测试全部 26 个完整文件；合计 26 次学习、676 次测试。
 - 沿用 run.py 的模型参数、版本检查、记录检查、time_scale_factor=1 和异常释放；任一次异常停止整个批量任务，不自动重试。
 - 累计模型时间约 2.01 小时；按正常速度仅模拟约 2.01 小时，不包含 702 次部署、读取和归档。平台单作业时限及实际配额消耗尚未验证，5000 core-hours 不保证足够。

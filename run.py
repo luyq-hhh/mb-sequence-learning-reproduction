@@ -67,6 +67,8 @@ def run_case(data_file, output_dir, input_info, testing_files=None):
     versions = {name: version(name) for name in ["sPyNNaker", "PyNN", "numpy", "neo"]}
     # 已核对 7.4.1 / 7.4.2 的模型接口和记录数据库结构；未知版本先停止。
     assert versions["sPyNNaker"].split("!")[-1] in ("7.4.1", "7.4.2"), versions
+    # 平台保留 ZIP 外层目录；从代码目录加载旁边的 spynnaker.cfg。
+    os.chdir(BASE_DIR)
     os.environ["MPLBACKEND"] = "Agg"
     sys.path.insert(0, str(BASE_DIR / "src"))
     from MB_main_11_ad_offset import MB_LE, sim, generate_pnlist
