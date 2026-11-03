@@ -13,7 +13,7 @@
 - Hardware: SpiNNaker
 - 来源：包含 run.py、spynnaker.cfg、src/ 两个模块和 data/p01.mat 的仓库或 ZIP。
 - Command: run.py --run
-- sPyNNaker version: 7.4.1（运行入口也会核对实际安装版本，版本不符时在申请硬件前退出）
+- sPyNNaker version: 留空，使用平台预装环境。成功作业 422060 的实际版本为 1!7.4.2；入口允许已核查的 7.4.1 / 7.4.2，未知版本在申请硬件前退出。
 - 其他软件版本覆盖项、Extra 各项先留空；本入口不依赖 Elephant 绘图分析。
 - 平台需要能访问代码源。浏览器已登录 GitHub，不代表平台有权限下载私有仓库；不要把登录令牌放进仓库 URL。
 

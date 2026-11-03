@@ -65,8 +65,8 @@ def check_recording(output_dir, simulation_ms):
 def run_case(data_file, output_dir, input_info, testing_files=None):
     from importlib.metadata import version
     versions = {name: version(name) for name in ["sPyNNaker", "PyNN", "numpy", "neo"]}
-    # 原始电压读取使用 7.4.1 的数据库结构，版本不符时在申请硬件前停止。
-    assert versions["sPyNNaker"].split("!")[-1] == "7.4.1", versions
+    # 已核对 7.4.1 / 7.4.2 的模型接口和记录数据库结构；未知版本先停止。
+    assert versions["sPyNNaker"].split("!")[-1] in ("7.4.1", "7.4.2"), versions
     os.environ["MPLBACKEND"] = "Agg"
     sys.path.insert(0, str(BASE_DIR / "src"))
     from MB_main_11_ad_offset import MB_LE, sim, generate_pnlist
