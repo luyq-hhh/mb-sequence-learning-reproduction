@@ -14,7 +14,7 @@ import numpy as np
 from scipy.io import loadmat
 
 BASE_DIR = Path(__file__).resolve().parent
-TIME_SCALE_FACTOR = 1  # 正常执行速度；模型时间步为 1 ms。
+TIME_SCALE_FACTOR = 10  # 墙钟执行放慢十倍；模型时间步仍为 1 ms。
 
 
 def check_input(data_file):
@@ -48,7 +48,7 @@ def check_recording(output_dir, simulation_ms):
         writer = csv.writer(file)
         writer.writerow(["core_name", "x", "y", "p", "counter", "value"])
         writer.writerows(rows)
-    bad_rows = [row for row in rows if int(row[5]) > 0 and
+    bad_rows = [row for row in rows if row[4] != "Latest_Send_time" and int(row[5]) > 0 and
                 any(word in str(row[4]).lower() for word in
                     ["overload", "overflow", "lost", "dropped", "late", "skipped"])]
     with (output_dir / "activity.pkl").open("rb") as file:
