@@ -48,3 +48,5 @@ COMPLETED 只表示本案例流程及检查完成，不能据此声称复现了�
 - 每个学习文件完成或失败后生成 outputs/learn_p01.zip 等独立 ZIP。outputs/batch_summary.json 汇总已完成的学习文件；各目录 run_summary.json 记录学习和各测试阶段完成情况。
 - 部分文件半程时长为 x.5 ms，记录完整性以模拟器实际完成的 1 ms 时间网格检查，不对预期点数直接向下取整。
 - 这是现有数据的交叉学习与测试，不包含长路线数据、SeqSLAM/PM、ROC/AUC 分析，不能称为论文全部结果复现。p00.mat 不在现有数据中，不虚构缺失样本或路线标签。
+
+平台生成的工作目录与 spynnaker.cfg 保持原位。入口在 sim.setup() 后叠加仓库 spynnaker.cfg 中的记录与 Java 设置，避免丢失硬件地址。
