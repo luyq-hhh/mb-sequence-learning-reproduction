@@ -1,6 +1,7 @@
 """p01 原规模单案例：默认检查输入，--run 才学习并测试。"""
 import argparse
 import csv
+from configparser import ConfigParser
 import hashlib
 import json
 import os
@@ -67,11 +68,12 @@ def run_case(data_file, output_dir, input_info, testing_files=None):
     versions = {name: version(name) for name in ["sPyNNaker", "PyNN", "numpy", "neo"]}
     # 已核对 7.4.1 / 7.4.2 的模型接口和记录数据库结构；未知版本先停止。
     assert versions["sPyNNaker"].split("!")[-1] in ("7.4.1", "7.4.2"), versions
-    # 平台保留 ZIP 外层目录；从代码目录加载旁边的 spynnaker.cfg。
-    os.chdir(BASE_DIR)
     os.environ["MPLBACKEND"] = "Agg"
     sys.path.insert(0, str(BASE_DIR / "src"))
     from MB_main_11_ad_offset import MB_LE, sim, generate_pnlist
+    from spinn_utilities.config_holder import set_config
+    project_config = ConfigParser()
+    project_config.read(BASE_DIR / "spynnaker.cfg")
     output_dir.mkdir(parents=True, exist_ok=False)
     record = {"status": "RUNNING", "input": input_info, "versions": versions,
               "pn": 840, "kc_per_group": 4000, "time_step_ms": 1,
@@ -92,6 +94,10 @@ def run_case(data_file, output_dir, input_info, testing_files=None):
                 sim.setup(timestep=1.0, min_delay=1.0, max_delay=14,
                           time_scale_factor=TIME_SCALE_FACTOR)
                 initialized = True
+                # 保留平台的硬件配置，只叠加项目的记录和 Java 设置。
+                for section in project_config.sections():
+                    for option, value in project_config.items(section):
+                        set_config(section, option, value)
                 sim.set_number_of_neurons_per_core(sim.IF_curr_exp,
                                                    50 if phase == "learning" else 100)
                 np.random.seed(1)
