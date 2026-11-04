@@ -14,7 +14,7 @@ import numpy as np
 from scipy.io import loadmat
 
 BASE_DIR = Path(__file__).resolve().parent
-TIME_SCALE_FACTOR = 200  # 墙钟执行放慢二百倍；模型时间步仍为 1 ms。
+TIME_SCALE_FACTOR = 20  # 墙钟执行放慢二十倍；模型时间步仍为 1 ms。
 
 
 def check_input(data_file):
@@ -31,7 +31,7 @@ def check_input(data_file):
     return info
 
 
-def check_recording(output_dir, simulation_ms):
+def check_recording(output_dir, simulation_ms, allow_packet_loss=False):
     # 沿用现有原始时间戳保存；不以 Neo 数组长度推断完整时间轴。
     with np.load(output_dir / "kc_a_raw_voltage.npz") as raw:
         expected = np.arange(int(simulation_ms), dtype=float)
@@ -51,19 +51,24 @@ def check_recording(output_dir, simulation_ms):
     bad_rows = [row for row in rows if row[4] != "Latest_Send_time" and int(row[5]) > 0 and
                 any(word in str(row[4]).lower() for word in
                     ["overload", "overflow", "lost", "dropped", "late", "skipped"])]
+    lost_packets = sum(int(row[5]) for row in bad_rows
+                       if row[4] == "Times_the_input_buffer_lost_packets")
+    blocking_rows = [row for row in bad_rows if not
+                     (allow_packet_loss and row[4] == "Times_the_input_buffer_lost_packets")]
     with (output_dir / "activity.pkl").open("rb") as file:
         activity = pickle.load(file)  # 只读取本次自己生成的输出。
     mbon_complete = all(len(activity[name]) == int(simulation_ms)
                         for name in ["mbon_v", "mbon_a_v"])
     checks = {"simulation_ms": float(simulation_ms), "kc_a_voltage_complete": bool(complete),
               "mbon_voltage_complete": mbon_complete,
-              "core_counter_rows": len(rows), "nonzero_error_counters": len(bad_rows)}
+              "core_counter_rows": len(rows), "nonzero_error_counters": len(bad_rows),
+              "input_buffer_lost_packets": lost_packets, "allow_packet_loss": allow_packet_loss}
     (output_dir / "checks.json").write_text(json.dumps(checks, indent=2))
     assert complete and mbon_complete, "电压记录不完整，保留输出并停止后续阶段"
-    assert rows and not bad_rows, "核心运行计数缺失或存在异常，保留输出并停止后续阶段"
+    assert rows and not blocking_rows, "核心运行计数缺失或存在异常，保留输出并停止后续阶段"
 
 
-def run_case(data_file, output_dir, input_info, testing_files=None):
+def run_case(data_file, output_dir, input_info, testing_files=None, allow_packet_loss=False):
     from importlib.metadata import version
     versions = {name: version(name) for name in ["sPyNNaker", "PyNN", "numpy", "neo"]}
     # 已核对 7.4.1 / 7.4.2 的模型接口和记录数据库结构；未知版本先停止。
@@ -77,7 +82,8 @@ def run_case(data_file, output_dir, input_info, testing_files=None):
     output_dir.mkdir(parents=True, exist_ok=False)
     record = {"status": "RUNNING", "input": input_info, "versions": versions,
               "pn": 840, "kc_per_group": 4000, "time_step_ms": 1,
-              "time_scale_factor": TIME_SCALE_FACTOR, "completed_phases": []}
+              "time_scale_factor": TIME_SCALE_FACTOR, "allow_packet_loss": allow_packet_loss,
+              "completed_phases": []}
     batch_mode = testing_files is not None
     if testing_files is None:
         testing_files = [data_file]
@@ -111,7 +117,7 @@ def run_case(data_file, output_dir, input_info, testing_files=None):
                 model.run_sim(make_plots=False,
                               save_weights=(phase == "learning" or not batch_mode))
                 # 某些文件的半程为 x.5 ms，按模拟器实际走过的 1 ms 网格检查。
-                check_recording(phase_dir, sim.get_current_time())
+                check_recording(phase_dir, sim.get_current_time(), allow_packet_loss)
                 if phase == "learning":
                     weights = generate_pnlist(np.asarray(model.learned_w_kc2kc))
                     assert weights, "学习后没有非零连接，停止测试"
@@ -136,11 +142,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data", type=Path, default=BASE_DIR / "data/p01.mat")
     parser.add_argument("--run", action="store_true", help="运行原规模学习和测试")
+    parser.add_argument("--allow-packet-loss", action="store_true",
+                        help="记录输入缓冲丢包，但允许继续测试")
     args = parser.parse_args()
     data_file = args.data.resolve()
     input_info = check_input(data_file)
     if args.run:
-        run_case(data_file, Path.cwd() / "outputs", input_info)
+        run_case(data_file, Path.cwd() / "outputs", input_info,
+                 allow_packet_loss=args.allow_packet_loss)
     else:
         print("Input check only; no model import or hardware allocation.")
 
