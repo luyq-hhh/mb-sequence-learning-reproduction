@@ -307,13 +307,11 @@ class MB_LE(object):
         # 保留抽样对象：记录和读取必须针对同一个神经元。
         self.kcs_a_sample = self.kcs_a.sample(1)
         self.kcs_a_sample.record(['v'])
-        self.ens.record(['v'],to_file=(self.recordoutputpath+self.filename_label+"_en_v.pkl"))
-        self.ens_a.record(['v'],to_file=(self.recordoutputpath+self.filename_label+"_en_a_v.pkl"))
-
-        self.ens.record(['spikes'],to_file=(self.recordoutputpath+self.filename_label+"_en_spikes.pkl"))
-        self.ens_a.record(['spikes'],to_file=(self.recordoutputpath+self.filename_label+"_en_a_spikes.pkl"))
-        # self.ens.record(['spikes'])
-        # self.ens_a.record(['spikes'])
+        # run_sim() 已保存 activity.pkl，结束模拟时无需再次自动写文件。
+        self.ens.record(['v'])
+        self.ens_a.record(['v'])
+        self.ens.record(['spikes'])
+        self.ens_a.record(['spikes'])
         self.buildCPUTime = timer.diff()
 
     def run_sim(self, make_plots=True, save_weights=True):
