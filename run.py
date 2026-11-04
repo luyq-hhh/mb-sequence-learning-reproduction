@@ -68,7 +68,8 @@ def check_recording(output_dir, simulation_ms, allow_packet_loss=False):
     assert rows and not blocking_rows, "核心运行计数缺失或存在异常，保留输出并停止后续阶段"
 
 
-def run_case(data_file, output_dir, input_info, testing_files=None, allow_packet_loss=False):
+def run_case(data_file, output_dir, input_info, testing_files=None,
+             allow_packet_loss=False, weights_file=None):
     from importlib.metadata import version
     versions = {name: version(name) for name in ["sPyNNaker", "PyNN", "numpy", "neo"]}
     # 已核对 7.4.1 / 7.4.2 的模型接口和记录数据库结构；未知版本先停止。
@@ -87,9 +88,19 @@ def run_case(data_file, output_dir, input_info, testing_files=None, allow_packet
     batch_mode = testing_files is not None
     if testing_files is None:
         testing_files = [data_file]
-    simulations = [("learning", data_file)] + [("testing", file) for file in testing_files]
+    simulations = ([] if weights_file else [("learning", data_file)])
+    simulations += [("testing", file) for file in testing_files]
     record["testing_files"] = [file.name for file in testing_files]
     weights = None
+    if weights_file:
+        with np.load(weights_file) as saved:
+            weight_matrix = saved["weights"]
+        assert weight_matrix.shape == (4000, 4000), "学习权重形状不正确"
+        weights = generate_pnlist(weight_matrix)
+        assert weights, "学习权重中没有正值连接"
+        record["weights_file"] = str(weights_file)
+        record["weights_sha256"] = hashlib.sha256(weights_file.read_bytes()).hexdigest()
+        record["loaded_connections"] = len(weights)
     try:
         for phase, current_file in simulations:
             initialized = False
@@ -144,12 +155,22 @@ def main():
     parser.add_argument("--run", action="store_true", help="运行原规模学习和测试")
     parser.add_argument("--allow-packet-loss", action="store_true",
                         help="记录输入缓冲丢包，但允许继续测试")
+    parser.add_argument("--weights", type=Path, help="读取已保存的学习权重，只做测试")
+    parser.add_argument("--testing-file", type=Path, help="只测试指定的 MAT 文件")
     args = parser.parse_args()
     data_file = args.data.resolve()
     input_info = check_input(data_file)
+    assert (args.weights is None) == (args.testing_file is None), "--weights 和 --testing-file 必须同时提供"
+    testing_files = None
+    if args.testing_file:
+        testing_file = args.testing_file.resolve()
+        check_input(testing_file)
+        assert args.weights.is_file(), "找不到学习权重文件"
+        testing_files = [testing_file]
     if args.run:
         run_case(data_file, Path.cwd() / "outputs", input_info,
-                 allow_packet_loss=args.allow_packet_loss)
+                 testing_files=testing_files, allow_packet_loss=args.allow_packet_loss,
+                 weights_file=args.weights)
     else:
         print("Input check only; no model import or hardware allocation.")
 
