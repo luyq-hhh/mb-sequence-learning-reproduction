@@ -17,7 +17,8 @@ BASE_DIR = Path(__file__).resolve().parent
 TIME_SCALE_FACTOR = 10  # 墙钟执行放慢十倍；模型时间步仍为 1 ms。
 
 
-def check_input(data_file):
+def check_input(data_file, learning_fraction=0.5):
+    assert 0 < learning_fraction <= 1
     data = loadmat(data_file)
     channels = data["idx_p"][0]
     times = data["t_p"][0].astype(float)
@@ -26,7 +27,7 @@ def check_input(data_file):
     assert np.all((channels >= 0) & (channels < 840))
     duration = float(times[-1] - times[0])
     info = {"file": data_file.name, "sha256": hashlib.sha256(data_file.read_bytes()).hexdigest(),
-            "events": len(times), "learning_ms": duration * 0.5, "testing_ms": duration}
+            "events": len(times), "learning_ms": duration * learning_fraction, "testing_ms": duration}
     print(json.dumps(info), flush=True)
     return info
 
@@ -69,7 +70,9 @@ def check_recording(output_dir, simulation_ms, allow_packet_loss=False):
 
 
 def run_case(data_file, output_dir, input_info, testing_files=None,
-             allow_packet_loss=False, weights_file=None):
+             allow_packet_loss=False, weights_file=None, learning_fraction=0.5):
+    assert 0 < learning_fraction <= 1
+    assert abs(input_info["learning_ms"] - input_info["testing_ms"] * learning_fraction) < 1e-8
     from importlib.metadata import version
     versions = {name: version(name) for name in ["sPyNNaker", "PyNN", "numpy", "neo"]}
     # 已核对 7.4.1 / 7.4.2 的模型接口和记录数据库结构；未知版本先停止。
@@ -84,7 +87,8 @@ def run_case(data_file, output_dir, input_info, testing_files=None,
     record = {"status": "RUNNING", "input": input_info, "versions": versions,
               "pn": 840, "kc_per_group": 4000, "time_step_ms": 1,
               "time_scale_factor": TIME_SCALE_FACTOR, "allow_packet_loss": allow_packet_loss,
-              "completed_phases": []}
+              "completed_phases": [], "learning_fraction": learning_fraction,
+              "learning_time_range": [0.0, learning_fraction]}
     batch_mode = testing_files is not None
     if testing_files is None:
         testing_files = [data_file]
@@ -119,7 +123,7 @@ def run_case(data_file, output_dir, input_info, testing_files=None,
                                                    50 if phase == "learning" else 100)
                 np.random.seed(1)
                 if phase == "learning":
-                    model = MB_LE(str(data_file), t_start=0, t_end=0.5,
+                    model = MB_LE(str(data_file), t_start=0, t_end=learning_fraction,
                                   learned=False, output_dir=phase_dir)
                 else:
                     model = MB_LE(str(current_file), learned=True, w_kc2kc=weights,
@@ -157,9 +161,11 @@ def main():
                         help="记录输入缓冲丢包，但允许继续测试")
     parser.add_argument("--weights", type=Path, help="读取已保存的学习权重，只做测试")
     parser.add_argument("--testing-file", type=Path, help="只测试指定的 MAT 文件")
+    parser.add_argument("--learning-fraction", type=float, choices=(1 / 3, 0.5), default=0.5,
+                        help="学习前1/3或前1/2；测试仍回放同文件全段")
     args = parser.parse_args()
     data_file = args.data.resolve()
-    input_info = check_input(data_file)
+    input_info = check_input(data_file, args.learning_fraction)
     assert (args.weights is None) == (args.testing_file is None), "--weights 和 --testing-file 必须同时提供"
     testing_files = None
     if args.testing_file:
@@ -170,7 +176,7 @@ def main():
     if args.run:
         run_case(data_file, Path.cwd() / "outputs", input_info,
                  testing_files=testing_files, allow_packet_loss=args.allow_packet_loss,
-                 weights_file=args.weights)
+                 weights_file=args.weights, learning_fraction=args.learning_fraction)
     else:
         print("Input check only; no model import or hardware allocation.")
 
